@@ -1,4 +1,4 @@
-# FritzBox Wake-on-LAN Tool
+# FRITZ!Box Wake-on-LAN Tool
 
 [![Python Version](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -10,11 +10,11 @@ A powerful, modern Python tool to remotely wake up devices on your network using
 ## 🔧 Requirements
 
 -  **Python 3.1+**
--  **AVM FritzBox Router** (tested with FritzOS 7.x and 8.x)
+-  **AVM FRITZ!Box Router** (tested with FRITZ!OS 7.x and 8.x)
 -  **Required Python packages:**
-  - `requests` - HTTP library
-  - `lxml` - XML processing
-  - `packaging` - Version comparison
+    - `requests` - HTTP library
+    - `lxml` - XML processing
+    - `packaging` - Version comparison
 
 ## 📥 Installation
 
