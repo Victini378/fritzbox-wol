@@ -19,7 +19,7 @@ A Python tool to remotely wake up devices on your network using your AVM FRITZ!B
 ### 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/fritzbox-wol.git
+git clone https://github.com/Victini378/fritzbox-wol.git
 cd fritzbox-wol
 ```
 
