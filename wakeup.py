@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FritzBox Wake-on-LAN Tool
+FRITZ!Box Wake-on-LAN Tool
 Send WOL packets to devices through FritzBox router.
 """
 
@@ -11,9 +11,8 @@ from client import FritzBoxClient
 from config import load_config, validate_device
 
 def create_parser() -> argparse.ArgumentParser:
-    """Create and configure argument parser."""
     parser = argparse.ArgumentParser(
-        description='Send Wake-on-LAN packets through FritzBox router',
+        description='Send Wake-on-LAN packets through FRITZ!Box router',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples:
             %(prog)s mypc                    Wake up device 'mypc'
@@ -95,4 +94,5 @@ def main():
         return 1
     
 if __name__ == '__main__':
+
     sys.exit(main())
