@@ -37,14 +37,16 @@ Create a `wakeup.json` configuration file in the project directory:
 
 ```json
 {
-  "host": "fritz.box",
+  "host": "your_hostname_or_ip",
   "port": 443,
-  "username": "admin",
-  "password": "your-password",
+  "username": "your_fritzbox_username",
+  "password": "your_fritzbox_password",
   "devices": {
-    "desktop": "AA:BB:CC:DD:EE:FF",
-    "laptop": "11:22:33:44:55:66",
-    "server": "FF:EE:DD:CC:BB:AA"
+    "default": "AA:BB:CC:DD:EE:FF",
+    "desktop": "11:22:33:44:55:66",
+    "server": "AA:11:BB:22:CC:33",
+    "laptop": "DD:EE:FF:00:11:22",
+    "nas": "99:88:77:66:55:44"
   }
 }
 ```
