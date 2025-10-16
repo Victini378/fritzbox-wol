@@ -53,9 +53,9 @@ Create a `wakeup.json` configuration file in the project directory:
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
-| `host` | string | ✅ Yes | FritzBox hostname or IP address |
+| `host` | string | ✅ Yes | FRITZ!Box hostname or IP address |
 | `port` | integer | ✅ Yes | HTTPS port (usually 443) |
-| `username` | string | ✅ Yes | FritzBox admin username |
+| `username` | string | ✅ Yes | FRITZ!Box admin username |
 | `password` | string | ❌ No | Password (will prompt if not provided) |
 | `devices` | object | ✅ Yes | Device name to MAC address mapping |
 
