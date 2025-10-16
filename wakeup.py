@@ -44,7 +44,6 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def main():
-    """Main CLI entry point."""
     parser = create_parser()
     args = parser.parse_args()
 
@@ -54,49 +53,49 @@ def main():
         
         target_mac = validate_device(config, args.device)
         
-        print(f"Connecting to FritzBox at {config['host']}...")
+        print(f"onnecting to FritzBox at {config['host']}...")
         client = FritzBoxClient(config)
         sid = client.authenticate()
         
-        print(f"Looking up device {args.device} ({target_mac})...")
+        print(f"🔍 Looking up device {args.device} ({target_mac})...")
         uid = client.get_device_uid(sid, target_mac)
         
-        print(f"Sending wake-up packet...")
+        print(f"📡 Sending wake-up packet...")
         client.send_wakeup(sid, uid)
         
-        print(f"✓ Wake-up packet sent successfully to {args.device} ({target_mac})")
+        print(f"✅ Wake-up packet sent successfully to {args.device} ({target_mac})")
         return 0
     
     except FileNotFoundError as e:
-        print(f"✗ Config Error: {e}", file=sys.stderr)
+        print(f"❌ Config Error: {e}", file=sys.stderr)
         return 1
     
     except ValueError as e:
-        print(f"✗ Configuration Error: {e}", file=sys.stderr)
+        print(f"❌ Configuration Error: {e}", file=sys.stderr)
         return 1
     
     except PermissionError as e:
-        print(f"✗ Authentication Error: {e}", file=sys.stderr)
+        print(f"❌ Authentication Error: {e}", file=sys.stderr)
         return 1
     
     except ConnectionError as e:
-        print(f"✗ Connection Error: {e}", file=sys.stderr)
+        print(f"❌ Connection Error: {e}", file=sys.stderr)
         return 1
     
     except LookupError as e:
-        print(f"✗ Device Error: {e}", file=sys.stderr)
+        print(f"❌ Device Error: {e}", file=sys.stderr)
         return 1
     
     except RuntimeError as e:
-        print(f"✗ Operation Error: {e}", file=sys.stderr)
+        print(f"❌ Operation Error: {e}", file=sys.stderr)
         return 1
         
     except KeyboardInterrupt:
-        print("\n✗ Operation cancelled by user", file=sys.stderr)
+        print("\n❌ Operation cancelled by user", file=sys.stderr)
         return 130
         
     except Exception as e:
-        print(f"✗ Unexpected error: {e}", file=sys.stderr)
+        print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return 1
     
 if __name__ == '__main__':
