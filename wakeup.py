@@ -66,12 +66,8 @@ def main():
         print(f"✅ Wake-up packet sent successfully to {args.device} ({target_mac})")
         return 0
     
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError) as e:
         print(f"❌ Config Error: {e}", file=sys.stderr)
-        return 1
-    
-    except ValueError as e:
-        print(f"❌ Configuration Error: {e}", file=sys.stderr)
         return 1
     
     except PermissionError as e:
