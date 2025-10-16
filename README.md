@@ -3,8 +3,6 @@
 [![Python Version](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> 🚀 Send Wake-on-LAN packets to your devices through your FRITZ!Box router with ease!
-
 A Python tool to remotely wake up devices on your network using your AVM FRITZ!Box router's web interface.
 
 ## 🔧 Requirements
