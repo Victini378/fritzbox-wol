@@ -52,7 +52,7 @@ def main():
         
         target_mac = validate_device(config, args.device)
         
-        print(f"onnecting to FritzBox at {config['host']}...")
+        print(f"⏳ Connecting to FritzBox at {config['host']}...")
         client = FritzBoxClient(config)
         sid = client.authenticate()
         
