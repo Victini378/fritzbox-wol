@@ -161,7 +161,7 @@ class FritzBoxClient:
             Firmware version string (e.g., '7.50')
         """
         try:
-            payload = {'sid': sid, 'page': 'overview'}
+            payload = {'sid': sid, 'page': 'mUp'}
             response = self._make_request(
                 'post',
                 self.url_data,
