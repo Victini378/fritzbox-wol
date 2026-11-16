@@ -1,44 +1,43 @@
 # FRITZ!Box Wake-on-LAN Tool
 
-[![Python Version](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A Python tool to remotely wake up devices on your network using your AVM FRITZ!Box router's web interface.
+A small Python CLI to wake devices on your network through an AVM FRITZ!Box.
+It uses the router's **TR-064 interface** and the dedicated
+`X_AVM-DE_WakeOnLANByMACAddress` action instead of depending on the private
+web-interface endpoints `data.lua` and `edit_device`.
 
-## 🔧 Requirements
+## Requirements
 
--  **Python 3.1+**
--  **AVM FRITZ!Box Router** (tested with FRITZ!OS 7.x and 8.x)
--  **Required Python packages:**
-    - `requests` - HTTP library
-    - `lxml` - XML processing
-    - `packaging` - Version comparison
+- Python 3.10 or newer.
+- A FRITZ!Box with TR-064 enabled (Home Network → Network → Network Settings → Allow access for applications).
+- A FRITZ!Box user with the permissions needed to access the router and use TR-064.
+- The target device must support Wake-on-LAN and have it enabled in its network adapter and BIOS/UEFI.
 
-## 📥 Installation
-
-### 1️⃣ Clone the Repository
+## Installation
 
 ```bash
 git clone https://github.com/Victini378/fritzbox-wol.git
 cd fritzbox-wol
-```
-
-### 2️⃣ Install Dependencies
-
-```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+cp wakeup.example.json wakeup.json
 ```
 
-## ⚙️ Configuration
+On Windows, activate the virtual environment with `.venv\\Scripts\\activate`.
 
-Create a `wakeup.json` configuration file in the project directory:
+## Configuration
+
+Edit `wakeup.json`:
 
 ```json
 {
-  "host": "your_hostname_or_ip",
-  "port": 443,
+  "host": "fritz.box",
+  "tr064_port": 49443,
+  "use_tls": true,
   "username": "your_fritzbox_username",
-  "password": "your_fritzbox_password",
   "devices": {
     "default": "AA:BB:CC:DD:EE:FF",
     "desktop": "11:22:33:44:55:66",
@@ -49,45 +48,76 @@ Create a `wakeup.json` configuration file in the project directory:
 }
 ```
 
-### 🔑 Configuration Options
+| Option | Required | Description |
+| --- | --- | --- |
+| `host` | Yes | FRITZ!Box hostname or IP address |
+| `username` | Yes | FRITZ!Box user name |
+| `password` | No | Password; prompted securely when omitted |
+| `devices` | Yes | Mapping from device names to MAC addresses |
+| `tr064_port` | No | Explicit TR-064 port; defaults to 49443 with TLS or 49000 without TLS |
+| `use_tls` | No | Use HTTPS for TR-064; defaults to `true` |
+| `port` | No | Legacy setting: tried first for compatibility, followed by the standard TR-064 port |
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `host` | string | ✅ Yes | FRITZ!Box hostname or IP address |
-| `port` | integer | ✅ Yes | HTTPS port (usually 443) |
-| `username` | string | ✅ Yes | FRITZ!Box admin username |
-| `password` | string | ❌ No | Password (will prompt if not provided) |
-| `devices` | object | ✅ Yes | Device name to MAC address mapping |
+The old `port` setting is retained as a compatibility hint. Existing
+configurations using `"port": 443` will try that port first (useful for a
+MyFRITZ! remote port-forward) and then fall back to the standard local TR-064
+port. For clarity, new configurations should use `tr064_port`.
 
-> 💡 **Tip:** For security, omit the `password` field to be prompted at runtime!
+For local TLS access, use port `49443`. For local unencrypted access, set
+`"use_tls": false` (port `49000`). For MyFRITZ! remote access, use TLS and set
+`tr064_port` to the HTTPS port configured under Internet → Permit Access →
+FRITZ!Box Services (often `443` or a custom port).
 
-## 🎮 Usage
+The `fritzconnection` library currently disables certificate verification
+because FRITZ!Box devices commonly use self-signed certificates. TLS still
+encrypts the connection, but it does not authenticate the router certificate.
+Use a trusted VPN for remote administration where possible.
 
-### Basic Usage
+Keep `wakeup.json` private. It is ignored by Git; use
+`wakeup.example.json` as the template.
+
+## Usage
+
+Wake a configured device (the positional command is unchanged):
 
 ```bash
-# Wake up a device
 python wakeup.py desktop
-```
-
-### 📋 Using Custom Config File
-
-```bash
 python wakeup.py laptop --config /path/to/custom.json
 ```
 
-### 🔓 Skip SSL Verification (Testing Only)
+List devices known to the FRITZ!Box:
 
 ```bash
-python wakeup.py desktop --ssl-no-verify
+python wakeup.py --list
 ```
 
-> ⚠️ **Warning:** Only use `--ssl-no-verify` for testing! It's not secure for production.
+Override the TR-064 port or disable TLS for local access:
 
-## 🙏 Acknowledgments
+```bash
+python wakeup.py desktop --tr064-port 49443
+python wakeup.py desktop --no-tls
+```
 
-This project was inspired by [n0rc](https://github.com/n0rc/fritzbox).
+The tool reports when the FRITZ!Box accepts the TR-064 request. This confirms
+that the router accepted the Wake-on-LAN action; it does not prove that the
+target computer has finished booting.
 
-## 📜 License
+## Development and tests
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pytest
+```
+
+The tests mock the router API and do not require a physical FRITZ!Box.
+
+## Acknowledgments
+
+Inspired by [n0rc/fritzbox](https://github.com/n0rc/fritzbox).
+Uses [fritzconnection](https://github.com/kbr/fritzconnection), an independent
+Python library for the FRITZ!Box TR-064 interface.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

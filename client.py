@@ -1,220 +1,130 @@
-"""FritzBox client for Wake-on-LAN operations."""
+"""FRITZ!Box client using the stable TR-064 interface."""
+
+from __future__ import annotations
 
 import getpass
-import hashlib
-from typing import Dict, Optional
+import xml.etree.ElementTree as ET
+from typing import Any
 
-import requests
-from lxml import etree
-from packaging import version
-from requests.exceptions import SSLError
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-
-SID_NOAUTH = '0000000000000000'
+from fritzconnection import FritzConnection
+from fritzconnection.core.exceptions import (
+    FritzAuthorizationError,
+    FritzConnectionException,
+)
+from fritzconnection.lib.fritzhosts import FritzHosts
+from requests.exceptions import RequestException
 
 
 class FritzBoxClient:
-    """Client for interacting with FritzBox router."""
+    """Small TR-064 client for device discovery and Wake-on-LAN."""
 
-    def __init__(self, config: Dict):
-        """
-        Initialize FritzBox client.
-        
-        Args:
-            config: Configuration dictionary containing host, port, username, etc.
-        """
+    def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
-        self.host = config['host']
-        self.port = config['port']
-        self.username = config['username']
-        self.verify_ssl = config.get('verify_ssl', True)
-        
-        self.url_login = f"https://{self.host}:{self.port}/login_sid.lua"
-        self.url_data = f"https://{self.host}:{self.port}/data.lua"
+        self.host = config["host"]
+        self.username = config["username"]
+        self.password = config.get("password") or getpass.getpass("FRITZ!Box password: ")
+        self.use_tls = config.get("use_tls", True)
+        self.timeout = config.get("timeout", 10)
+        self.connection: FritzConnection | None = None
+        self.port: int | None = None
 
-    def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
+    def _port_candidates(self) -> list[int]:
+        """Prefer an explicit TR-064 port, then try legacy and standard ports."""
+        explicit_port = self.config.get("tr064_port")
+        if explicit_port is not None:
+            return [explicit_port]
+
+        standard_port = 49443 if self.use_tls else 49000
+        legacy_port = self.config.get("port")
+
+        if legacy_port is None or legacy_port == standard_port:
+            return [standard_port]
+
+        # Older wakeup.json files used "port" for the web interface (often 443).
+        # It may also be a MyFRITZ! externally forwarded TR-064 port.
+        return [legacy_port, standard_port]
+
+    def authenticate(self) -> None:
+        """Create and validate a TR-064 connection.
+
+        fritzconnection performs digest authentication for TR-064 calls. The
+        legacy method name is retained so the CLI flow remains familiar.
         """
-        Make HTTP request with SSL error handling.
-        
-        Args:
-            method: HTTP method (get/post)
-            url: Request URL
-            **kwargs: Additional arguments for requests
-            
-        Returns:
-            Response object
-            
-        Raises:
-            ConnectionError: If SSL verification fails
-        """
+        errors: list[tuple[int, Exception]] = []
+
+        for port in self._port_candidates():
+            try:
+                connection = FritzConnection(
+                    address=self.host,
+                    port=port,
+                    user=self.username,
+                    password=self.password,
+                    timeout=self.timeout,
+                    use_tls=self.use_tls,
+                    use_cache=True,
+                )
+                # Force a real Hosts-service request now, so invalid endpoints
+                # and authentication failures are reported before sending WOL.
+                FritzHosts(connection).host_numbers
+                self.connection = connection
+                self.port = port
+                return
+            except FritzAuthorizationError as exc:
+                raise PermissionError(
+                    "FRITZ!Box authorization failed. Check the username, password "
+                    "and the user's application permissions."
+                ) from exc
+            except (
+                FritzConnectionException,
+                RequestException,
+                ET.ParseError,
+                OSError,
+                ValueError,
+            ) as exc:
+                errors.append((port, exc))
+
+        attempted = ", ".join(str(port) for port, _ in errors)
+        last_error = errors[-1][1] if errors else RuntimeError("No TR-064 port configured")
+        raise ConnectionError(
+            f"Could not connect to the FRITZ!Box TR-064 interface at "
+            f"{self.host}. Tried port(s): {attempted}. "
+            f"Check that access for applications is enabled and that the "
+            f"TR-064 port/TLS settings are correct. Last error: {last_error}"
+        ) from last_error
+
+    def _require_connection(self) -> FritzConnection:
+        if self.connection is None:
+            self.authenticate()
+        assert self.connection is not None
+        return self.connection
+
+    def get_devices(self) -> list[dict[str, Any]]:
+        """Return devices known to the FRITZ!Box."""
+        connection = self._require_connection()
         try:
-            if method.lower() == 'get':
-                return requests.get(url, **kwargs)
-            elif method.lower() == 'post':
-                return requests.post(url, **kwargs)
-        except SSLError:
-            raise ConnectionError(
-                "SSL certificate verification failed. "
-                "Use --ssl-no-verify flag to bypass (not recommended)"
+            return FritzHosts(connection).get_hosts_info()
+        except FritzAuthorizationError as exc:
+            raise PermissionError("FRITZ!Box authorization failed.") from exc
+        except (FritzConnectionException, RequestException) as exc:
+            raise ConnectionError(f"Could not retrieve the FRITZ!Box host list: {exc}") from exc
+
+    def send_wakeup(self, mac_address: str) -> bool:
+        """Ask the FRITZ!Box to send a WOL packet to a MAC address.
+
+        Returns True when the router accepts the TR-064 action. This does not
+        guarantee that the target computer has completed its boot process.
+        """
+        connection = self._require_connection()
+        try:
+            connection.call_action(
+                "Hosts1",
+                "X_AVM-DE_WakeOnLANByMACAddress",
+                NewMACAddress=mac_address,
             )
-
-    def _get_challenge(self) -> str:
-        """
-        Retrieve authentication challenge from FritzBox.
-        
-        Returns:
-            Challenge string
-        """
-        response = self._make_request('get', self.url_login, verify=self.verify_ssl)
-        tree = etree.XML(response.content)
-        return tree.xpath('//Challenge/text()')[0]
-
-    def _calculate_response(self, challenge: str, password: str) -> str:
-        """
-        Calculate challenge-response hash for authentication.
-        
-        Args:
-            challenge: Challenge string from FritzBox
-            password: Router password
-            
-        Returns:
-            Response hash string
-        """
-        challenge_pwd = f"{challenge}-{password}"
-        hash_value = hashlib.md5(challenge_pwd.encode('utf-16-le')).hexdigest()
-        return f"{challenge}-{hash_value}"
-
-    def authenticate(self, password: Optional[str] = None) -> str:
-        """
-        Authenticate with FritzBox and return session ID.
-        
-        Args:
-            password: Router password. If None, prompts user.
-            
-        Returns:
-            Session ID string
-            
-        Raises:
-            PermissionError: If authentication fails
-        """
-        if password is None:
-            password = self.config.get('password') or getpass.getpass("Password: ")
-
-        challenge = self._get_challenge()
-        response = self._calculate_response(challenge, password)
-        
-        auth_url = f"{self.url_login}?username={self.username}&response={response}"
-        r = self._make_request('get', auth_url, verify=self.verify_ssl)
-        
-        tree = etree.XML(r.content)
-        sid = tree.xpath('//SID/text()')[0]
-        
-        if sid == SID_NOAUTH:
+        except FritzAuthorizationError as exc:
             raise PermissionError(
-                "Authentication failed. Please check username and password."
-            )
-        
-        return sid
-
-    def get_device_uid(self, sid: str, mac_address: str) -> str:
-        """
-        Get device UID by MAC address.
-        
-        Args:
-            sid: Session ID
-            mac_address: Device MAC address
-            
-        Returns:
-            Device UID
-            
-        Raises:
-            LookupError: If device with given MAC is not found
-        """
-        payload = {'sid': sid, 'page': 'netDev', 'xhrId': 'all'}
-        response = self._make_request(
-            'post', 
-            self.url_data, 
-            data=payload, 
-            verify=self.verify_ssl
-        )
-        data = response.json()
-        
-        for device_list in [data['data']['passive'], data['data']['active']]:
-            for device in device_list:
-                if device['mac'] == mac_address:
-                    return device['UID']
-        
-        raise LookupError(
-            f"Device with MAC address {mac_address} not found in FritzBox"
-        )
-
-    def get_firmware_version(self, sid: str) -> str:
-        """
-        Get FritzBox firmware version.
-        
-        Args:
-            sid: Session ID
-            
-        Returns:
-            Firmware version string (e.g., '7.50')
-        """
-        try:
-            payload = {'sid': sid, 'page': 'mUp'}
-            response = self._make_request(
-                'post',
-                self.url_data,
-                data=payload,
-                verify=self.verify_ssl
-            )
-            data = response.json()
-            return data['data']['fritzos']['nspver'].split()[0]
-        except (KeyError, IndexError):
-            return '0.0'
-
-    def send_wakeup(self, sid: str, uid: str) -> bool:
-        """
-        Send Wake-on-LAN packet to device.
-        
-        Args:
-            sid: Session ID
-            uid: Device UID
-            
-        Returns:
-            True if successful
-            
-        Raises:
-            RuntimeError: If wake-up fails
-        """
-        payload = {
-            'sid': sid,
-            'dev': uid,
-            'oldpage': 'net/edit_device.lua',
-            'page': 'edit_device',
-            'btn_wake': ''
-        }
-        
-        # Adjust page parameter for older firmware versions
-        fw_version = self.get_firmware_version(sid)
-        if version.parse(fw_version) <= version.parse('7.24'):
-            payload['page'] += '2'
-        
-        response = self._make_request(
-            'post',
-            self.url_data,
-            data=payload,
-            verify=self.verify_ssl
-        )
-        
-        content_type = response.headers.get("content-type", "")
-        if content_type.startswith('application/json'):
-            data = response.json()
-            success = data.get('data', {}).get('btn_wake') == 'ok'
-        else:
-            success = '"pid":"netDev"' in response.text
-        
-        if not success:
-            raise RuntimeError("Failed to send wake-up packet")
-        
+                "FRITZ!Box authorization failed. Check the account permissions."
+            ) from exc
+        except (FritzConnectionException, RequestException) as exc:
+            raise RuntimeError(f"FRITZ!Box rejected the Wake-on-LAN request: {exc}") from exc
         return True

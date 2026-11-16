@@ -2,13 +2,16 @@
 venv/
 .venv/
 
-# Python cache
+# Python cache and test artifacts
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Distribution / packaging
+# Distribution
 build/
 dist/
 *.egg-info/
@@ -21,8 +24,13 @@ dist/
 *.swo
 *~
 
-# Config files (may contain sensitive data)
-wakeup.conf
-wakeup.config
+# Local secrets and configuration
+.env
+.env.*
 wakeup.json
-*.json
+*.local.json
+*.conf
+!wakeup.example.json
+
+# fritzconnection cache
+.fritzconnection/

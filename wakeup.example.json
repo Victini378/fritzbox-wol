@@ -1,0 +1,11 @@
+{
+  "host": "fritz.box",
+  "tr064_port": 49443,
+  "use_tls": true,
+  "username": "your_fritzbox_username",
+  "devices": {
+    "default": "AA:BB:CC:DD:EE:FF",
+    "desktop": "11:22:33:44:55:66",
+    "server": "AA:11:BB:22:CC:33"
+  }
+}
